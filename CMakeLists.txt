@@ -21,6 +21,18 @@ catkin_package(
 catkin_package(
   CATKIN_DEPENDS message_runtime
 )
+
+catkin_install_python(PROGRAMS
+scripts/safety_node.py
+DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+if (CATKIN_ENABLE_TESTING)
+	find_package(roslaunch REQUIRED)
+	roslaunch_add_file_check(launch)
+endif()
+
+
 set(Torch_DIR /home/car/.local/lib/python3.6/site-packages/torch/share/cmake/Torch)
 find_package(Torch REQUIRED)
 include_directories(

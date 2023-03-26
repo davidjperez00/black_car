@@ -1,5 +1,4 @@
 <launch>
     <rosparam command="load" file="$(find black_car)/settings.yaml"/>
-    <node pkg="black_car" name="real_car_lane_follow" type="real_car_lane_follow" output="screen">
-    </node>
+    <node pkg="black_car" name="safety_node" type="safety_node.py" output="screen"> </node>
 </launch>
