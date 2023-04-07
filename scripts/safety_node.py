@@ -3,97 +3,76 @@ import rospy
 import math
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
-from std_msgs.msg import Float64
+from std_msgs.msg import Bool
+
+# Custom message
+from black_car.msg import TTC_Data
 
 class Safety(object):
     """
-    The class that handles emergency braking.
+    The class that handles emergency braking. This nodes gets ttc data from
+    the '/ttc_data' topic and uses a threshold to determine when to stop the vehicle.
     """
     def __init__(self):
-        # This constant value is used as the velocity for calculating TTC
-        # but also for setting the speed of the vehicle
-        self.vehicle_speed = 1.25
-
-        # Topic used to retrieve libar information
-        self.scan_subscriber = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-
-        # immediatley initiate a nonzero velocity once node is launched
-        self.f1tenth_driving_publisher = rospy.Publisher("/vesc/high_level/ackermann_cmd_mux/input/nav_0", AckermannDriveStamped, queue_size=10)
-        self.f1tenth_drive_msg = AckermannDriveStamped()
-        self.f1tenth_drive_msg.drive.speed = self.vehicle_speed # set speed to x meters per second
-        self.f1tenth_driving_publisher.publish(self.f1tenth_drive_msg)
-
-        # Data to be retrieved for bag files
-        self.ttc_vals_publisher = rospy.Publisher("/ttc_vals", Float64, queue_size=10)
-        self.ttc_vals_msg = Float64()
-        self.ttc_threshold_publisher = rospy.Publisher("/ttc_threshold", Float64, queue_size=10)
-        self.ttc_threshold_msg = Float64()
-
-        # Constants used for scan_callback of "/scan" topic for calculating TTC   
-        self.laser_constants_set = False
-        self.laser_angle_min = 0
-        self.laser_angle_max = 0
-        self.laser_angle_increment = 0
-        self.laser_ranges_len = 0
-
-
-    def scan_callback(self, scan_msg):
-        # Continuously set vehicle speed
-        self.f1tenth_driving_publisher.publish(self.f1tenth_drive_msg)
-        # Continuously publish ttc vals
-        self.ttc_threshold_publisher.publish(self.ttc_threshold_msg)
-
-        # When vehicle is not moving TTC is infinity
-        if (self.f1tenth_drive_msg.drive.speed == 0.0):
-            return
-
-        # Get constants of scan topic once
-        if (self.laser_constants_set == False):
-            self.laser_angle_min = scan_msg.angle_min
-            self.laser_angle_max = scan_msg.angle_max
-            self.laser_angle_increment = scan_msg.angle_increment
-            self.laser_ranges_len = len(scan_msg.ranges)
-            self.laser_constants_set = True
-
-            # Setting TTC threshold value
-            self.ttc_threshold_msg.data = 0.77
-
-        current_angle = self.laser_angle_min # min angle of LaserScan
-
-        # loop for number or items in scan_msg.ranges
-        min_ttc = 10000 # for keeping track of temp ttc, arbitrary initial val
-        temp_TTC = 0
-        for i in range(0, self.laser_ranges_len):
-            velocity_cos_x = self.vehicle_speed * (math.cos(current_angle))
-            
-            # increment angle for next iteration
-            current_angle += self.laser_angle_increment
-                        
-            # When the cars not moving the time to collision is infinity
-            if (velocity_cos_x != 0 or velocity_cos_x != -0 ): 
-                temp_TTC = scan_msg.ranges[i] / velocity_cos_x
-
-
-                if (temp_TTC > 0 and temp_TTC < min_ttc):
-                    min_ttc = temp_TTC
-
-                # Threshold for stoping car based on TTC
-                # Negative TTC means car is moving away from object
-                if (temp_TTC > 0 and temp_TTC < 0.77):
-                    # Set the vehicle speed to zero
-                    self.f1tenth_drive_msg.drive.speed = 0.0
-                    self.f1tenth_driving_publisher.publish(self.f1tenth_drive_msg)
-
-                    # publish TTC on last iteration
-                    self.ttc_vals_msg.data = temp_TTC
-                    self.ttc_vals_publisher.publish(self.ttc_vals_msg)
-                    
-                    return
-
-        # Publishing min TTC value for bag file
-        self.ttc_vals_msg.data = min_ttc
-        self.ttc_vals_publisher.publish(self.ttc_vals_msg)
         
+        # Class constants
+        self.TTC_FRONT_THRESHOLD = .915
+        self.TTC_SIDE_THRESHOLD = 0.8
+        
+        '''     Subscibers     '''
+        self.scan_subscriber = rospy.Subscriber("/ttc_data", TTC_Data, self.tcc_data_callback)
+        
+        
+        '''     Publishers     '''
+        self.drive_subscriber = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
+        self.drive_msg = AckermannDriveStamped()
+        
+        self.brake_subscriber = rospy.Publisher("/brake", AckermannDriveStamped, queue_size=10)
+        self.brake_msg = AckermannDriveStamped()
+        
+        self.brake_bool_subscriber = rospy.Publisher("/brake_bool", Bool, queue_size=10)
+        self.brake_bool_msg = Bool()
+        
+
+    def tcc_data_callback(self, ttc_data_msg):
+        # In case there is an instance where the ttc could be zero.
+        # We also want to neglect negative ttc values since this means the vehicle 
+        # is moving away from the nearest object.
+        if ((ttc_data_msg.ttc_min != 0) or (ttc_data_msg.ttc_min != -0)):
+            
+            if (ttc_data_msg.ttc_min > 0):
+                # Extra credit implementation. If the ttc angle is between is in said
+                # range (i.e. its on the side of the vehicle) then don't stop the car.
+                # This ensures that if the vehicle is driving next to a wall a different threshold
+                # will be used to stop the vehicle which will be smaller than that of 
+                # the ttc for the front of the vehicle. The cut-off used is if the ttc angle 
+                # is greater than +- 90 degrees (or 1.5708 radians)
+                if ((ttc_data_msg.ttc_min_angle > 1.5708) or (ttc_data_msg.ttc_min_angle < -1.5708)):
+                    
+                    if (ttc_data_msg.ttc_min < self.TTC_SIDE_THRESHOLD):        
+                        self.drive_msg.drive.speed = 0 # stop the vehicle
+                        self.drive_subscriber.publish(self.drive_msg)
+                        
+                        self.brake_msg.drive.speed = 0 # stop the vehicle
+                        self.brake_subscriber.publish(self.brake_msg)
+                        
+                        self.brake_bool_msg.data = True # stop the vehicle
+                        self.brake_bool_subscriber.publish(self.brake_bool_msg)
+                        
+                        return 
+                
+                if (ttc_data_msg.ttc_min < self.TTC_FRONT_THRESHOLD):
+                    self.brake_msg.drive.speed = 0 # stop the vehicle
+                    self.brake_subscriber.publish(self.brake_msg)
+                    
+                    self.brake_bool_msg.data = True # stop the vehicle
+                    self.brake_bool_subscriber.publish(self.brake_bool_msg)
+                    
+                    self.drive_msg.drive.speed = 0 # stop the vehicle
+                    self.drive_subscriber.publish(self.drive_msg)
+                    
+                    return 
+
 
 def main():
     rospy.init_node('safety_node')
