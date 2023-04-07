@@ -1,0 +1,2 @@
+float32 ttc_min
+float32 ttc_min_angle

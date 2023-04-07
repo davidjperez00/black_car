@@ -1,5 +1,8 @@
 <launch>
     <rosparam command="load" file="$(find black_car)/settings.yaml"/>
-    <node pkg="black_car" name="real_car_lane_follow" type="real_car_lane_follow" output="screen">
+    <node pkg="black_car" name="safety_node" type="safety_node.py" output="screen"> </node>
+    <node pkg="black_car" name="tf_listener_tcc_node" type="tf_bd_listener_node.py" output="screen"> </node>
+    <node pkg="rosbag" type="record" name="rosbag_laser_base_link_poses"
+        args="record -o ../bagfiles /min_laser_pose /min_base_link_pose">
     </node>
 </launch>
