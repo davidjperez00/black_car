@@ -42,35 +42,18 @@ class WallFollow:
         self.drive_pub = #TODO: Publish to drive
         
         
-        # Constants set by '/scan' topic with default values
+        # Constants set by '/scan' topic 
         self.lidar_constants_set = False
-        self.laser_angle_min = 0
-        self.laser_angle_max = 0
-        self.laser_angle_increment = 0
-        self.laser_ranges_len = 0
-        # 0 degree index of ranges array from lidar readings 
-        self.directly_forward_lidar_index = 0
 
 
 
-    def getRange(self, lidar_data, angle):
+    def getRange(self, data, angle):
         # data: single message from topic /scan
         # angle: between -45 to 225 degrees, where 0 degrees is directly to the right
         # Outputs length in meters to object with angle in lidar scan field of view
         #make sure to take care of nans etc.
-
-        # CAN HANGLE INVALID DATA BY USING A LIDAR DATA READING +-X INDEXES FROM DESIRED INDEX
         #TODO: implement
-
-
-        # Produces value of 270
-        num_increments_for_left_angle = math.ceil(angle /lidar_data.laser_angle_increment)
-        ranges_index_at_angle = self.directly_forward_lidar_index - num_increments_for_left_angle # 269
-        
-        # Ensure that this is a valid index:
-        distance = lidar_data.ranges[ranges_index_at_angle]
-
-        return distance
+        return 0.0
 
     def pid_control(self, error, velocity):
         global integral
@@ -87,10 +70,26 @@ class WallFollow:
         drive_msg.drive.speed = velocity
         self.drive_pub.publish(drive_msg)
 
-        return angle
-
-    def followLeft(self, lidar_data, leftDist):
+    def followLeft(self, data, leftDist):
         #Follow left wall as per the algorithm 
+        #TODO:implement
+
+        
+
+        return 0.0 
+
+    def lidar_callback(self, lidar_data):
+        """ 
+        """
+        
+        if (self.lidar_constants_set == False):
+            self.laser_angle_min = lidar_data.angle_min
+            self.laser_angle_max = lidar_data.angle_max
+            self.laser_angle_increment = lidar_data.angle_increment
+            self.laser_ranges_len = len(lidar_data.ranges)
+            
+            self.laser_constants_set = True        
+            
         
         # Get the distance directly to the left of the car 
         '''
@@ -105,50 +104,45 @@ class WallFollow:
             | <-------[ ^ ]
             |   b     [car]      
         '''  
-
+        
         # Determnining the lidar_data.ranges[] index that contains the lidar
         # distance reading at an angle of 90 degrees to the left of the axis pointing directly
         # infront of the vehicle
+        directly_forward_lidar_index = (self.laser_ranges_len  / 2 ) - 1 # 539
         directly_left_radian_angle = 1.5708 # 90 degrees
-        distance_a = self.getRange(lidar_data, directly_left_radian_angle)
-
+        # Produces value of 270
+        num_increments_for_left_angle = math.ceil(directly_left_radian_angle /self.laser_angle_increment)
+        self.directly_left_ranges_index = directly_forward_lidar_index - num_increments_for_left_angle # 269
+        
+        distance_a = lidar_data.ranges[self.directly_left_ranges_index]
+        
         # Determining the lidar_data.ranges[] index that contains the lidar distance
         # reading at an angle of 30 degrees to the left of the axis pointing directly 
         # in front of the vehicle (this is index 539 of lidar ranges (angle 0)).
         radian_angle_distance_b = 0.523599 # 30 degrees
-        distance_b = self.getRange(lidar_data, radian_angle_distance_b)
+        num_increments_for_left_angle_b = math.ceil(radian_angle_distance_b / self.laser_angle_increment)
+        self.distance_b_ranges_index = directly_forward_lidar_index - num_increments_for_left_angle_b #
+        
+        distance_b = lidar_data.ranges[self.distance_b_ranges_index]
         
         angle_between_a_b = directly_left_radian_angle - radian_angle_distance_b # about 60 degrees
         
         alpha = math.atan((distance_a*math.cos(angle_between_a_b) - distance_b) / (distance_a*math.sin(angle_between_a_b)))
         
-        # Calculating distance to the left wall at current time t
+        # Calculating distance to the left wall at time t
         D_t = distance_b * math.cos(alpha)
         
         # Calculating the estimated future distance of the vehicle:
         # The approximated distance forward the vehicle has traveled:
-        time_between_callbacks = 0.1 #POPULATE ME WITH CONSTANT?? OR FIND RATE HZ (about 60 maybe)??
+        time_between_callbacks = 0 #POPULATE ME WITH CONSTANT?? OR FIND RATE HZ (about 60 maybe)??
         projected_forward_distance = VELOCITY * time_between_callbacks
         D_t_plus_1 = D_t + (projected_forward_distance) * math.sin(alpha)
-
-        error = leftDist - D_t_plus_1
-
-        return error
-
-    def lidar_callback(self, lidar_data):
-        """ 
-        """
-        if (self.lidar_constants_set == False):
-            self.laser_angle_min = lidar_data.angle_min
-            self.laser_angle_max = lidar_data.angle_max
-            self.laser_angle_increment = lidar_data.angle_increment
-            self.laser_ranges_len = len(lidar_data.ranges)
-            self.directly_forward_lidar_index = (self.laser_ranges_len  / 2 ) - 1 # 539
-            
-            self.laser_constants_set = True        
         
-        error = self.followLeft(lidar_data, DESIRED_DISTANCE_LEFT)
         
+        error = DESIRED_DISTANCE_LEFT - D_t_plus_1
+        
+        error = 0.0 #TODO: replace with error returned by followLeft
+        #send error to pid_control
         self.pid_control(error, VELOCITY)
 
 def main(args):
