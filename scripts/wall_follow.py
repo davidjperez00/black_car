@@ -10,8 +10,10 @@ from sensor_msgs.msg import Image, LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 
 #PID CONTROL PARAMS
-kp = #TODO
-kd = #TODO
+# kp = #TODO
+# kd = #TODO
+kp = 0
+kd = 0
 ki = 0.0003
 servo_offset = 0.0
 prev_error = 0.0 
@@ -36,10 +38,10 @@ class WallFollow:
         self.lidar_sub = rospy.Subscriber(lidarscan_topic, LaserScan, self.lidar_callback)
         
         # Topic that publishes speed of vehicle
-        # self.drive_subscriber = rospy.Subscriber("/drive", AckermannDriveStamped, self.drive_callback)
+        self.drive_pub = rospy.Publisher("/drive", AckermannDriveStamped)
         # self.odom_subscriber = rospy.Subscriber("/odom", Odometry, self.odom_callback)
         
-        self.drive_pub = #TODO: Publish to drive
+        # self.drive_pub = #TODO: Publish to drive
         
         
         # Constants set by '/scan' topic with default values
@@ -57,16 +59,17 @@ class WallFollow:
         # data: single message from topic /scan
         # angle: between -45 to 225 degrees, where 0 degrees is directly to the right
         # Outputs length in meters to object with angle in lidar scan field of view
-        #make sure to take care of nans etc.
+        # make sure to take care of nans etc.
 
         # CAN HANGLE INVALID DATA BY USING A LIDAR DATA READING +-X INDEXES FROM DESIRED INDEX
         #TODO: implement
 
 
         # Produces value of 270
-        num_increments_for_left_angle = math.ceil(angle /lidar_data.laser_angle_increment)
-        ranges_index_at_angle = self.directly_forward_lidar_index - num_increments_for_left_angle # 269
-        
+        num_increments_for_left_angle = math.ceil(angle /lidar_data.angle_increment)
+        ranges_index_at_angle = int(self.directly_forward_lidar_index - num_increments_for_left_angle) # 269
+        # print(f"index, angle = {ranges_index_at_angle} {angle}" )
+        print("index, angle = {} {}".format(ranges_index_at_angle, angle) )
         # Ensure that this is a valid index:
         distance = lidar_data.ranges[ranges_index_at_angle]
 
@@ -110,26 +113,33 @@ class WallFollow:
         # distance reading at an angle of 90 degrees to the left of the axis pointing directly
         # infront of the vehicle
         directly_left_radian_angle = 1.5708 # 90 degrees
-        distance_a = self.getRange(lidar_data, directly_left_radian_angle)
+        distance_b = self.getRange(lidar_data, directly_left_radian_angle)
+        print("distance_a", distance_b)
 
         # Determining the lidar_data.ranges[] index that contains the lidar distance
         # reading at an angle of 30 degrees to the left of the axis pointing directly 
         # in front of the vehicle (this is index 539 of lidar ranges (angle 0)).
-        radian_angle_distance_b = 0.523599 # 30 degrees
-        distance_b = self.getRange(lidar_data, radian_angle_distance_b)
+        radian_angle_distance_a = 0.523599 # 30 degrees
+        distance_a = self.getRange(lidar_data, radian_angle_distance_a)
+        print("distance_b", distance_a)
         
-        angle_between_a_b = directly_left_radian_angle - radian_angle_distance_b # about 60 degrees
+        angle_between_a_b = directly_left_radian_angle - radian_angle_distance_a # about 60 degrees
+        print("angle_between_a_b", angle_between_a_b)
         
         alpha = math.atan((distance_a*math.cos(angle_between_a_b) - distance_b) / (distance_a*math.sin(angle_between_a_b)))
-        
+        print("alpha = ", alpha)
         # Calculating distance to the left wall at current time t
         D_t = distance_b * math.cos(alpha)
+        print("D_t = ", D_t)
         
         # Calculating the estimated future distance of the vehicle:
         # The approximated distance forward the vehicle has traveled:
         time_between_callbacks = 0.1 #POPULATE ME WITH CONSTANT?? OR FIND RATE HZ (about 60 maybe)??
         projected_forward_distance = VELOCITY * time_between_callbacks
-        D_t_plus_1 = D_t + (projected_forward_distance) * math.sin(alpha)
+        print("projected_forward_distance = ", projected_forward_distance)
+        D_t_plus_1 = D_t + (projected_forward_distance * math.sin(alpha))
+        
+        print("D_t_plus_1 = ", D_t_plus_1)
 
         error = leftDist - D_t_plus_1
 
@@ -148,8 +158,10 @@ class WallFollow:
             self.laser_constants_set = True        
         
         error = self.followLeft(lidar_data, DESIRED_DISTANCE_LEFT)
+        print("Value of 'error' = ", error)
         
-        self.pid_control(error, VELOCITY)
+        print("=========== lidar loop ===============")
+        # self.pid_control(error, VELOCITY)
 
 def main(args):
     rospy.init_node("WallFollow_node", anonymous=True)
