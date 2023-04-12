@@ -3,8 +3,4 @@
     <node pkg="black_car" name="safety_node" type="safety_node.py" output="screen"> </node>
     <node pkg="black_car" name="tf_listener_tcc_node" type="tf_bd_listener_node.py" output="screen"> </node>
     <node pkg="black_car" name="wall_follower_node" type="wall_follow.py" output="screen"> </node>
-
-    <!-- <node pkg="rosbag" type="record" name="rosbag_laser_base_link_poses"
-        args="record -o ../bagfiles /min_laser_pose /min_base_link_pose">
-    </node> -->
 </launch>
