@@ -16,8 +16,8 @@ class Safety(object):
     def __init__(self):
         
         # Class constants
-        self.TTC_FRONT_THRESHOLD = .915
-        self.TTC_SIDE_THRESHOLD = 0.8
+        self.TTC_FRONT_THRESHOLD = 0.8
+        self.TTC_SIDE_THRESHOLD = 0.6
         
         '''     Subscibers     '''
         self.scan_subscriber = rospy.Subscriber("/ttc_data", TTC_Data, self.tcc_data_callback)
