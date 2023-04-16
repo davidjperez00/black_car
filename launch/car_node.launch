@@ -2,5 +2,8 @@
     <rosparam command="load" file="$(find black_car)/settings.yaml"/>
     <node pkg="black_car" name="safety_node" type="safety_node.py" output="screen"> </node>
     <node pkg="black_car" name="tf_listener_tcc_node" type="tf_bd_listener_node.py" output="screen"> </node>
-    <node pkg="black_car" name="wall_follower_node" type="wall_follow.py" output="screen"> </node>
+     <node pkg="black_car" name="wall_follower_node" type="wall_follow.py" output="screen"> </node>
+    <!--   <node pkg="rosbag" type="record" name="rosbag_wall_data"
+        args="record -o ../wall_data /wall_data">
+        </node> -->
 </launch>

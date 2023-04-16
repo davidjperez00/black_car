@@ -8,6 +8,9 @@ import numpy as np
 import rospy
 from sensor_msgs.msg import Image, LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
+from black_car.msg import WallData
+from black_car.msg import WallAlgoStatus
+
 
 #PID CONTROL PARAMS
 kp = 3
@@ -25,8 +28,21 @@ class WallFollow:
         # Subscriber to the '/scan' that publishes lidar scan data
         self.lidar_sub = rospy.Subscriber('/scan', LaserScan, self.lidar_callback)
         
+        # Subscriber to get information from 'safety_node' to proceed or
+        # not with the wall following algorithm
+        self.lidar_sub = rospy.Subscriber('/wall_follow_status', WallAlgoStatus, self.wall_status_callback)
+        # global variable to indicate if we should proceed with wall following
+        self.run_wall_follow = True
+        
         # Publisher to set the speed of the vehicle
-        self.drive_pub = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
+        # self.drive_pub = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
+        self.drive_pub = rospy.Publisher("/vesc/high_level/ackermann_cmd_mux/input/nav_0", AckermannDriveStamped, queue_size=10)
+
+
+        # Publisher for generating the vehicles current distance from the
+        # left wall along with the desired distance from the left wall.
+        self.wall_distances_pub = rospy.Publisher("/wall_data", WallData, queue_size=10)
+        self.wall_distances_msg = WallData()
         
         # Constants set by '/scan' topic with default values
         self.lidar_constants_set = False
@@ -59,9 +75,6 @@ class WallFollow:
         else:
             velocity = 0.5
                         
-        print("angle = ", angle)
-        print("velocity = ", velocity)
-        print("=============== one loop ================")
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = rospy.Time.now()
         drive_msg.header.frame_id = "laser"
@@ -144,7 +157,12 @@ class WallFollow:
         # Determining difference of our projected distance of wall
         # and our desired distance.
         error = leftDist - D_t_plus_1
-
+        
+        # Publish current distance from wall along with desired distance
+        self.wall_distances_msg.desired_left_wall_distance = leftDist
+        self.wall_distances_msg.current_left_wall_distance = D_t_plus_1
+        self.wall_distances_pub.publish(self.wall_distances_msg)
+        
         return error
 
     def lidar_callback(self, lidar_data):
@@ -160,11 +178,20 @@ class WallFollow:
             self.directly_forward_lidar_index = (len(lidar_data.ranges)  / 2 ) - 1 # 539
             
             self.laser_constants_set = True    
-                    
+        
+        # If the safety node tells the vehicle to stop
+        # we don't want the wall follow algorithm to update the speed 
+        # to a nonzero value            
+        if (self.run_wall_follow == False):
+            print("STATUS IS FALSE \r\n")
+            return
+        
         error = self.followLeft(lidar_data, DESIRED_DISTANCE_LEFT)
         
         self.pid_control(error)
 
+    def wall_status_callback(self, wall_follow_data):
+        self.run_wall_follow = wall_follow_data.run_wall_follow
 
 def main(args):
     rospy.init_node("WallFollow_node", anonymous=True)

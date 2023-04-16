@@ -81,44 +81,47 @@ class BroadCasterTTCNode(object):
         if (self._vehicle_speed == 0 or self._vehicle_speed == -0):
             return
         
-        min_laser_distance = 0
-        min_base_link_distance = 0
-        current_angle = self.laser_angle_min # First index of lidar reading is at lidar's min angle
+        min_laser_distance = 10000
         min_angle = 0
-        temp_TTC = 0
-        min_ttc = 10000
-        # Find the smallest lidar distance and it's corresponding angle
+        index = 0
+        current_angle = self.laser_angle_min
+        # Loop through lidar reading to find the smallest distance
+        # along with that corresponding anlge
         for i in range(0, self.laser_ranges_len):
-            # Getting velocity with respect to min lidar angled reading
-            velocity_cos_x = self._vehicle_speed * (math.cos(current_angle))
-            
-            if (velocity_cos_x != 0 or velocity_cos_x != -0 ): 
-                # Calculate min TTC for smallest lidar reading from 'laser' frame to'base_link' frame
-                # First convert laser distance from laser frame to base_link frame:
-                base_link_x = (self.laser_base_link_x_trans) + (scan_msg.ranges[i] * math.cos(min_angle))
-                base_link_y = (scan_msg.ranges[i] * math.sin(min_angle))
-                base_link_distance = math.sqrt((base_link_x ** 2) + (base_link_y ** 2))
+            if (scan_msg.ranges[i] < min_laser_distance):
+                min_laser_distance = scan_msg.ranges[i]
+                min_angle = current_angle
+                index = i
                 
-                # If vehicle speed gets updated to zero we no longer
-                # want to try to produce a ttc.
-                try:
-                    temp_TTC = base_link_distance / velocity_cos_x
-                except:
-                    continue
-                
-                if (temp_TTC > 0 and temp_TTC < min_ttc):
-                    min_ttc = temp_TTC
-                    min_angle = current_angle
-                    # Used to generate PoseStamped for 'laser' frame
-                    # and 'base_link' frame for shortest lidar distance
-                    min_laser_distance = scan_msg.ranges[i]
-                    min_base_link_distance = base_link_distance
-    
-            # increment angle for next iteration
             current_angle += self.laser_angle_increment
             
+        # Calculate min TTC for smallest lidar reading from 'laser' frame to'base_link' frame
+        # First convert laser distance from laser frame to base_link frame:
+        base_link_x = (self.laser_base_link_x_trans) + (min_laser_distance * math.cos(min_angle))
+        base_link_y = (min_laser_distance * math.sin(min_angle))
+        base_link_distance = math.sqrt((base_link_x ** 2) + (base_link_y ** 2))
+        
+        # Getting velocity with respect to min lidar angled reading
+        velocity_cos_x = self._vehicle_speed * (math.cos(min_angle))
+        
+        # If vehicle speed gets updated to zero we no longer
+        # want to try to produce a ttc.
+        try:
+            min_TTC = base_link_distance / velocity_cos_x
+        except:
+            return
+
+            
+
+        # print("min_laser_distance = \r\n", min_laser_distance)
+        # print("base_link_distance = \r\n", base_link_distance)
+        # print("TESTING_min_angle = \r\n", min_angle)
+        # print("index = \r\n", index)
+        # print("min_TTC = \r\n", min_TTC)
+        # print("============= end loop ======== \r\n")
+        
         # Publish ttc data for '/ttc_data' topic
-        self.ttc_data_msg.ttc_min = min_ttc
+        self.ttc_data_msg.ttc_min = min_TTC
         self.ttc_data_msg.ttc_min_angle = min_angle
         self.ttc_data_publisher.publish(self.ttc_data_msg)
 
@@ -138,8 +141,8 @@ class BroadCasterTTCNode(object):
         # Populating and  Publishing the pose in 'base_link' frame
         self.pose_base_link_msg.header.stamp  = rospy.Time.now()
         self.pose_base_link_msg.header.frame_id = 'base_link'
-        self.pose_base_link_msg.pose.position.x = (self.laser_base_link_x_trans) + (min_base_link_distance * math.cos(min_angle))
-        self.pose_base_link_msg.pose.position.y = (min_base_link_distance * math.sin(min_angle))
+        self.pose_base_link_msg.pose.position.x = (self.laser_base_link_x_trans) + (base_link_distance * math.cos(min_angle))
+        self.pose_base_link_msg.pose.position.y = (base_link_distance * math.sin(min_angle))
         self.pose_base_link_msg.pose.position.z = 0.0
         quaternion_base_link_pose = tf_conversions.transformations.quaternion_from_euler(0, 0, min_angle)
         self.pose_base_link_msg.pose.orientation.x = quaternion_base_link_pose[0]
@@ -153,7 +156,6 @@ class BroadCasterTTCNode(object):
     def odom_callback(self, odom_msg):
         self._vehicle_speed = odom_msg.twist.twist.linear.x
 
-            
             
 def main():
     rospy.init_node('broadcaster_min_tcc_node')

@@ -1,0 +1,2 @@
+float32 desired_left_wall_distance
+float32 current_left_wall_distance

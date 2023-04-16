@@ -5,8 +5,10 @@ from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import Bool
 
+
 # Custom message
 from black_car.msg import TTC_Data
+from black_car.msg import WallAlgoStatus
 
 class Safety(object):
     """
@@ -17,14 +19,14 @@ class Safety(object):
         
         # Class constants
         self.TTC_FRONT_THRESHOLD = 0.7
-        self.TTC_SIDE_THRESHOLD = 0.5
+        self.TTC_SIDE_THRESHOLD = 0.2
         
         '''     Subscibers     '''
         self.scan_subscriber = rospy.Subscriber("/ttc_data", TTC_Data, self.tcc_data_callback)
         
         
         '''     Publishers     '''
-        self.drive_subscriber = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
+        self.drive_subscriber = rospy.Publisher("/vesc/high_level/ackermann_cmd_mux/input/nav_0", AckermannDriveStamped, queue_size=10)
         self.drive_msg = AckermannDriveStamped()
         
         self.brake_subscriber = rospy.Publisher("/brake", AckermannDriveStamped, queue_size=10)
@@ -33,6 +35,11 @@ class Safety(object):
         self.brake_bool_subscriber = rospy.Publisher("/brake_bool", Bool, queue_size=10)
         self.brake_bool_msg = Bool()
         
+        self.wall_follow_status_pub = rospy.Publisher("/wall_follow_status", WallAlgoStatus, queue_size=10)
+        self.wall_follow_status_msg = WallAlgoStatus()
+        self.wall_follow_status_msg.run_wall_follow = True
+        # Initialize wall follow status to true
+        self.wall_follow_status_pub.publish(self.wall_follow_status_msg)
 
     def tcc_data_callback(self, ttc_data_msg):
         # In case there is an instance where the ttc could be zero.
@@ -59,9 +66,14 @@ class Safety(object):
                         self.brake_bool_msg.data = True # stop the vehicle
                         self.brake_bool_subscriber.publish(self.brake_bool_msg)
                         
+                        # Publish to topic so wall follow algorithm halts
+                        self.wall_follow_status_msg.run_wall_follow = False
+                        self.wall_follow_status_pub.publish(self.wall_follow_status_msg)
+                        
                         return 
                 
                 if (ttc_data_msg.ttc_min < self.TTC_FRONT_THRESHOLD):
+                    print("ttc occured \r\n")
                     self.brake_msg.drive.speed = 0 # stop the vehicle
                     self.brake_subscriber.publish(self.brake_msg)
                     
@@ -71,6 +83,10 @@ class Safety(object):
                     self.drive_msg.drive.speed = 0 # stop the vehicle
                     self.drive_subscriber.publish(self.drive_msg)
                     
+                    # Publish to topic so wall follow algorithm halts
+                    self.wall_follow_status_msg.run_wall_follow = False
+                    self.wall_follow_status_pub.publish(self.wall_follow_status_msg)
+                      
                     return 
 
 

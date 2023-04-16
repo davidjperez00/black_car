@@ -11,6 +11,8 @@ add_message_files(
 	CarObject.msg
   	CarObjects.msg
 	TTC_Data.msg
+	WallData.msg
+	WallAlgoStatus.msg
 )
 generate_messages(
   DEPENDENCIES
@@ -26,7 +28,7 @@ catkin_package(
 
 catkin_install_python(PROGRAMS
 scripts/safety_node.py
-scripts/tf_broadcaster_node.py
+scripts/tf_bd_listener_node.py
 scripts/wall_follow.py
 DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
