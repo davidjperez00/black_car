@@ -1,1 +1,0 @@
-bool run_wall_follow
