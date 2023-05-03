@@ -95,7 +95,7 @@ class reactive_follow_gap:
         if (closest_distance < 0.1):
             vehicle_speed = 0.0
         
-        vehicle_speed = 1.75
+        vehicle_speed = 0.75
          
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = rospy.Time.now()
