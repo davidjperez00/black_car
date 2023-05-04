@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from __future__ import print_function
 import sys
 import math
 import numpy as np
@@ -95,7 +94,7 @@ class reactive_follow_gap:
         if (closest_distance < 0.1):
             vehicle_speed = 0.0
         
-        vehicle_speed = 0.75
+        vehicle_speed = 1.25
          
         drive_msg = AckermannDriveStamped()
         drive_msg.header.stamp = rospy.Time.now()
@@ -123,7 +122,7 @@ class reactive_follow_gap:
         closest_distance = proc_ranges[closest_index]
         
         # Eliminate all points inside 'bubble' (set them to zero)
-        bubble_radius = 10
+        bubble_radius = 15
         self.bubble_lidar_closest_distance(bubble_radius, proc_ranges, closest_index)
 
         # Find the index of the largest gap on nonzero values
