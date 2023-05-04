@@ -26,7 +26,7 @@ catkin_package(
 )
 
 catkin_install_python(PROGRAMS
-scripts/wall_follow.py
+scripts/reactive_gap_follow.py
 DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
